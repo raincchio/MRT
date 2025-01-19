@@ -54,8 +54,6 @@ class Hyperparameters:
 
 	# Reward Transformation
 	rt_lr: float = 3e-4
-	rt_hdim: int = 256
-	rt_activ: Callable = F.elu
 
 def AvgL1Norm(x, eps=1e-8):
 	return x/x.abs().mean(-1,keepdim=True).clamp(min=eps)
@@ -151,7 +149,7 @@ class Critic(nn.Module):
 
 
 class Agent(object):
-	def __init__(self, state_dim, action_dim, max_action, offline=False, hp=Hyperparameters()): 
+	def __init__(self, state_dim, action_dim, max_action, offline=False, mrt=False, hp=Hyperparameters()):
 		# Changing hyperparameters example: hp=Hyperparameters(batch_size=128)
 		
 		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -176,12 +174,14 @@ class Agent(object):
 		self.replay_buffer = buffer.LAP(state_dim, action_dim, self.device, hp.buffer_size, hp.batch_size, 
 			max_action, normalize_actions=True, prioritized=True)
 
-		self.r_t = RewardTransformation(state_dim, action_dim, hp.rt_hdim, hp.rt_activ).to(self.device)
-		self.rt_optimizer = torch.optim.Adam(self.r_t.parameters(), lr=hp.rt_lr)
-		self.mse_loss = torch.nn.MSELoss()
+		if mrt:
+			self.r_t = RewardTransformation().to(self.device)
+			self.rt_optimizer = torch.optim.Adam(self.r_t.parameters(), lr=hp.rt_lr)
+			self.mse_loss = torch.nn.MSELoss()
 
 		self.max_action = max_action
 		self.offline = offline
+		self.mrt = mrt
 
 		self.training_steps = 0
 
@@ -221,7 +221,8 @@ class Agent(object):
 
 		state, action, next_state, reward, not_done = self.replay_buffer.sample()
 
-		reward = self.r_t(state, action, reward)
+		if self.mrt:
+			reward = self.r_t(reward)
 
 		#########################
 		# Update Encoder
@@ -265,11 +266,13 @@ class Agent(object):
 		critic_loss.backward()
 		self.critic_optimizer.step()
 
-		rt_loss = self.mse_loss(Q.detach(), Q_target-reward.detach() +reward)
 
-		self.rt_optimizer.zero_grad()
-		rt_loss.backward()
-		self.rt_optimizer.step()
+		if self.mrt:
+			rt_loss = self.mse_loss(Q.detach(), Q_target-reward.detach() +reward)
+
+			self.rt_optimizer.zero_grad()
+			rt_loss.backward()
+			self.rt_optimizer.step()
 		
 		#########################
 		# Update LAP
@@ -342,44 +345,49 @@ class Agent(object):
 		self.min_return = 1e8
 
 class RewardTransformation(nn.Module):
-	def __init__(self, state_dim, action_dim, hdim=16, activ=F.elu):
+	def __init__(self):
 		super(RewardTransformation, self).__init__()
-		self.activ = activ
-		self.hdim=hdim
+		# self.hdim=hdim
 		# 初始化一个可学习参数 a 和 b
-		# self.a = nn.Parameter(torch.tensor(1.0))  # 初始值为 1.0
-		# self.b = nn.Parameter(torch.tensor(0.0))  # 初始值为 0.0
+		self.a = nn.Parameter(torch.tensor(1.0))  # 初始值为 1.0
+		self.b = nn.Parameter(torch.tensor(0.0))  # 初始值为 0.0
 
-		self.hyper_w_1 = nn.Linear(state_dim + action_dim, hdim)
-
-		self.hyper_w_final = nn.Linear(state_dim + action_dim, self.embed_dim)
-
-		self.hyper_b_1 = nn.Linear(self.state_dim, self.embed_dim)
-
-		self.q5 = nn.Linear(hdim, hdim)
-		self.a = nn.Linear(hdim, 1)
-		self.b = nn.Linear(hdim, 1)
-
-	def forward(self, state, action, r):
-		sa = torch.cat([state, action], 1)
-
-		bs = state.size(0)
-		sa = sa.reshape(bs, -1)
-		r = r.view(-1, 1, 1)
-
+		# self.hyper_w1 = nn.Linear(state_dim + action_dim, 1)
 		#
-		w1 = torch.abs(self.hyper_w_1(sa))
-		b1 = self.hyper_b_1(sa)
-		w1 = w1.view(-1, 1, )
-		b1 = b1.view(-1, 1, self.hdim)
-		hidden = F.elu(torch.bmm(r, w1) + b1)
+		# # self.hyper_w2 = nn.Linear(state_dim + action_dim, hdim)
 		#
-		w_final = torch.abs(self.hyper_w_final(sa))
-		w_final = w_final.view(-1, self.embed_dim, 1)
-		# State-dependent bias
-		v = self.V(sa).view(-1, 1, 1)
-		# Compute final output
-		y = th.bmm(hidden, w_final) + v
-		# Reshape and return
-		q_tot = y.view(bs, -1, 1)
-		return a_positive * r + b
+		# self.hyper_b1 = nn.Linear(state_dim + action_dim, 1)
+		# self.hyper_b2 = nn.Linear(state_dim + action_dim, 1)
+
+	def forward(self, r):
+		# sa = torch.cat([state, action], 1)
+		#
+		# #
+		# w1 = torch.abs(self.hyper_w1(sa))
+		# b1 = self.hyper_b1(sa)
+		# abs_r = torch.abs(r)
+		# w1 = torch.clamp(w1,min=0, max=2)
+		# b1 = torch.clamp(b1, min=-abs_r, max=abs_r)
+
+		# w1 = w1.view(-1,1,self.hdim)
+		# b1 = b1.view(-1, 1, self.hdim)
+		# r = r.view(-1,1,1)
+		#
+		# hidden = F.elu(torch.bmm(r, w1) + b1)
+		#
+		# # second
+		# w2 = torch.abs(self.hyper_w2(sa))
+		# b2 = self.hyper_b2(sa)
+		#
+		# abs_r = torch.abs(r)
+		# w2 = torch.clamp(w2,min=0, max=2)
+		# b2 = torch.clamp(b2, min=-abs_r, max=abs_r)
+		#
+		# w2 = w2.view(-1,self.hdim, 1)
+		# b2 = b2.view(-1, 1, 1)
+		if self.a<=0.1:
+			self.a = 0.1
+
+		r_t = r*self.a + self.b
+
+		return r_t

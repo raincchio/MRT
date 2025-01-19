@@ -6,7 +6,7 @@ import gym
 import numpy as np
 import torch
 
-import TD7_MRT
+import TD7_MRT as TD7
 
 
 import os
@@ -99,6 +99,7 @@ if __name__ == "__main__":
 	# RL
 	parser.add_argument("--env", default="Humanoid-v4", type=str)
 	parser.add_argument("--seed", default=1, type=int)
+	parser.add_argument("--mrt", action='store_true')
 	parser.add_argument("--offline", default=False, action=argparse.BooleanOptionalAction)
 	parser.add_argument('--use_checkpoints', default=False, action=argparse.BooleanOptionalAction)
 	# Evaluation
@@ -139,7 +140,7 @@ if __name__ == "__main__":
 	action_dim = env.action_space.shape[0] 
 	max_action = float(env.action_space.high[0])
 
-	RL_agent = TD7.Agent(state_dim, action_dim, max_action, args.offline)
+	RL_agent = TD7.Agent(state_dim, action_dim, max_action, args.offline, args.mrt)
 
 	if args.offline:
 		train_offline(RL_agent, env, eval_env, args)
