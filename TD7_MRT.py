@@ -309,6 +309,7 @@ class Agent(object):
 
 			self.max_target = self.max
 			self.min_target = self.min
+		return Q[:,0].mean().item()
 
 
 	# If using checkpoints: run when each episode terminates
@@ -360,31 +361,7 @@ class RewardTransformation(nn.Module):
 		# self.hyper_b2 = nn.Linear(state_dim + action_dim, 1)
 
 	def forward(self, r):
-		# sa = torch.cat([state, action], 1)
-		#
-		# #
-		# w1 = torch.abs(self.hyper_w1(sa))
-		# b1 = self.hyper_b1(sa)
-		# abs_r = torch.abs(r)
-		# w1 = torch.clamp(w1,min=0, max=2)
-		# b1 = torch.clamp(b1, min=-abs_r, max=abs_r)
 
-		# w1 = w1.view(-1,1,self.hdim)
-		# b1 = b1.view(-1, 1, self.hdim)
-		# r = r.view(-1,1,1)
-		#
-		# hidden = F.elu(torch.bmm(r, w1) + b1)
-		#
-		# # second
-		# w2 = torch.abs(self.hyper_w2(sa))
-		# b2 = self.hyper_b2(sa)
-		#
-		# abs_r = torch.abs(r)
-		# w2 = torch.clamp(w2,min=0, max=2)
-		# b2 = torch.clamp(b2, min=-abs_r, max=abs_r)
-		#
-		# w2 = w2.view(-1,self.hdim, 1)
-		# b2 = b2.view(-1, 1, 1)
 		if self.a<=0.1:
 			self.a = 0.1
 
