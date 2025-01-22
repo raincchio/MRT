@@ -8,13 +8,7 @@ import torch
 
 import TD7_MRT as TD7
 
-
-import os
-
-home_directory = os.path.expanduser("~")
-
-
-def train_online(RL_agent, env, eval_env, args):
+def train_online(RL_agent, env, eval_env, args, data_dir):
 	evals = []
 	expls = []
 	values = []
@@ -53,7 +47,7 @@ def train_online(RL_agent, env, eval_env, args):
 			expls.append(ep_total_reward)
 			values.append(value)
 			tdds.append(tdd)
-			maybe_evaluate_and_print(RL_agent, eval_env, evals, t, start_time, args, expls, values, tdds)
+			maybe_evaluate_and_print(RL_agent, eval_env, evals, t, start_time, args, expls, values, tdds, data_dir)
 
 		if t >= args.timesteps_before_training:
 			allow_train = True
@@ -80,7 +74,7 @@ def train_offline(RL_agent, env, eval_env, args):
 		RL_agent.train()
 
 
-def maybe_evaluate_and_print(RL_agent, eval_env, evals, t, start_time, args, expls, values, tdds, d4rl=False):
+def maybe_evaluate_and_print(RL_agent, eval_env, evals, t, start_time, args, expls, values, tdds, data_dir, d4rl=False):
 	# if t % args.eval_freq == 0 and allow_train:
 	print("-----------------------------------------------------------------")
 	print(f"Evaluation at {t} time steps")
@@ -101,7 +95,7 @@ def maybe_evaluate_and_print(RL_agent, eval_env, evals, t, start_time, args, exp
 
 	evals.append(total_reward.mean())
 
-	np.save(f"{home_directory}/experiments/mrt/{args.file_name}", (evals, expls, values, tdds))
+	np.save(f"{data_dir}/{args.file_name}", (evals, expls, values, tdds))
 		# dd = np.load(f"{home_directory}/experiments/mrt/{args.file_name}.npy")
 
 
@@ -112,6 +106,7 @@ if __name__ == "__main__":
 	parser.add_argument("--env", default="Humanoid-v4", type=str)
 	parser.add_argument("--seed", default=1, type=int)
 	parser.add_argument("--mrt", action='store_true')
+	parser.add_argument("--mrt_rm_var", type=str, help='a, b')
 	parser.add_argument("--offline", default=False, action=argparse.BooleanOptionalAction)
 	parser.add_argument('--use_checkpoints', default=False, action=argparse.BooleanOptionalAction)
 	# Evaluation
@@ -132,8 +127,14 @@ if __name__ == "__main__":
 	if args.file_name is None:
 		args.file_name = f"mrt_{args.env}_{args.seed}"
 
-	if not os.path.exists(home_directory+"/experiments/mrt"):
-		os.makedirs(home_directory+"/experiments/mrt")
+	if args.mrt_rm_var:
+		post_fix = 'mrt-'+'-'.join(args.mrt_rm_var.split(','))
+	else:
+		post_fix = 'mrt'
+
+	data_dir = os.path.expanduser("~")+"/experiments/" +post_fix
+	if not os.path.exists(data_dir):
+		os.makedirs(data_dir)
 
 	env = gym.make(args.env)
 	eval_env = gym.make(args.env)
@@ -157,4 +158,4 @@ if __name__ == "__main__":
 	if args.offline:
 		train_offline(RL_agent, env, eval_env, args)
 	else:
-		train_online(RL_agent, env, eval_env, args)
+		train_online(RL_agent, env, eval_env, args, data_dir)
