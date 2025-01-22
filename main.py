@@ -105,8 +105,8 @@ if __name__ == "__main__":
 	# RL
 	parser.add_argument("--env", default="Humanoid-v4", type=str)
 	parser.add_argument("--seed", default=1, type=int)
-	parser.add_argument("--mrt", action='store_true')
-	parser.add_argument("--mrt_rm_var", type=str, help='a, b')
+	# parser.add_argument("--mrt", action='store_true')
+	parser.add_argument("--mrt_rm_var", type=str, help='comma-separated string, such as a, b')
 	parser.add_argument("--offline", default=False, action=argparse.BooleanOptionalAction)
 	parser.add_argument('--use_checkpoints', default=False, action=argparse.BooleanOptionalAction)
 	# Evaluation
@@ -127,10 +127,12 @@ if __name__ == "__main__":
 	if args.file_name is None:
 		args.file_name = f"mrt_{args.env}_{args.seed}"
 
-	if args.mrt_rm_var:
-		post_fix = 'mrt-'+'-'.join(args.mrt_rm_var.split(','))
+	if args.mrt_rm_var is not None:
+		mrt_rm_var = args.mrt_rm_var.split(',')
+		post_fix = 'mrt-'+'-'.join(mrt_rm_var)
 	else:
 		post_fix = 'mrt'
+		mrt_rm_var = []
 
 	data_dir = os.path.expanduser("~")+"/experiments/" +post_fix
 	if not os.path.exists(data_dir):
@@ -153,7 +155,7 @@ if __name__ == "__main__":
 	action_dim = env.action_space.shape[0] 
 	max_action = float(env.action_space.high[0])
 
-	RL_agent = TD7.Agent(state_dim, action_dim, max_action, args.offline, args.mrt)
+	RL_agent = TD7.Agent(state_dim, action_dim, max_action, args.offline, mrt_rm_var=mrt_rm_var)
 
 	if args.offline:
 		train_offline(RL_agent, env, eval_env, args)

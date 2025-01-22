@@ -149,7 +149,7 @@ class Critic(nn.Module):
 
 
 class Agent(object):
-	def __init__(self, state_dim, action_dim, max_action, offline=False, mrt=False, hp=Hyperparameters()):
+	def __init__(self, state_dim, action_dim, max_action, offline=False, mrt_rm_var=None, hp=Hyperparameters()):
 		# Changing hyperparameters example: hp=Hyperparameters(batch_size=128)
 		
 		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -174,14 +174,14 @@ class Agent(object):
 		self.replay_buffer = buffer.LAP(state_dim, action_dim, self.device, hp.buffer_size, hp.batch_size, 
 			max_action, normalize_actions=True, prioritized=True)
 
-		if mrt:
-			self.r_t = RewardTransformation().to(self.device)
+		if len(mrt_rm_var)<2:
+			self.r_t = RewardTransformation(mrt_rm_var).to(self.device)
 			self.rt_optimizer = torch.optim.Adam(self.r_t.parameters(), lr=hp.rt_lr)
 			self.mse_loss = torch.nn.MSELoss()
 
 		self.max_action = max_action
 		self.offline = offline
-		self.mrt = mrt
+		self.mrt_rm_var = mrt_rm_var
 
 		self.training_steps = 0
 
@@ -221,7 +221,7 @@ class Agent(object):
 
 		state, action, next_state, reward, not_done = self.replay_buffer.sample()
 
-		if self.mrt:
+		if len(self.mrt_rm_var) < 2:
 			reward = self.r_t(reward)
 
 		#########################
@@ -266,8 +266,7 @@ class Agent(object):
 		critic_loss.backward()
 		self.critic_optimizer.step()
 
-
-		if self.mrt:
+		if len(self.mrt_rm_var)<2:
 			rt_loss = self.mse_loss(Q.detach(), Q_target-reward.detach() +reward)
 
 			self.rt_optimizer.zero_grad()
@@ -346,19 +345,18 @@ class Agent(object):
 		self.min_return = 1e8
 
 class RewardTransformation(nn.Module):
-	def __init__(self):
+	def __init__(self, mrt_rm_var):
 		super(RewardTransformation, self).__init__()
-		# self.hdim=hdim
-		# 初始化一个可学习参数 a 和 b
-		self.a = nn.Parameter(torch.tensor(1.0))  # 初始值为 1.0
-		self.b = nn.Parameter(torch.tensor(0.0))  # 初始值为 0.0
 
-		# self.hyper_w1 = nn.Linear(state_dim + action_dim, 1)
-		#
-		# # self.hyper_w2 = nn.Linear(state_dim + action_dim, hdim)
-		#
-		# self.hyper_b1 = nn.Linear(state_dim + action_dim, 1)
-		# self.hyper_b2 = nn.Linear(state_dim + action_dim, 1)
+		if 'a' in mrt_rm_var:
+			self.a = 1
+		else:
+			self.a = nn.Parameter(torch.tensor(1.0))
+
+		if 'b' in mrt_rm_var:
+			self.b = 0
+		else:
+			self.b = nn.Parameter(torch.tensor(0.0))
 
 	def forward(self, r):
 
