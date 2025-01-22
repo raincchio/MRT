@@ -309,7 +309,7 @@ class Agent(object):
 
 			self.max_target = self.max
 			self.min_target = self.min
-		return Q[:,0].mean().item()
+		return Q[:,0].mean().item(), (td_loss**2).mean().item()
 
 
 	# If using checkpoints: run when each episode terminates

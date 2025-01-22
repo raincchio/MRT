@@ -18,9 +18,11 @@ def train_online(RL_agent, env, eval_env, args):
 	evals = []
 	expls = []
 	values = []
+	tdds = []
 	start_time = time.time()
 	allow_train = False
 	value = None
+	tdd = None
 
 	state, ep_finished = env.reset(), False
 	ep_total_reward, ep_timesteps, ep_num = 0, 0, 1
@@ -45,12 +47,13 @@ def train_online(RL_agent, env, eval_env, args):
 		state = next_state
 
 		if allow_train and not args.use_checkpoints:
-			value = RL_agent.train()
+			value, tdd = RL_agent.train()
 
 		if allow_train and t % args.eval_freq == 0:
 			expls.append(ep_total_reward)
 			values.append(value)
-			maybe_evaluate_and_print(RL_agent, eval_env, evals, t, start_time, args, expls, values)
+			tdds.append(tdd)
+			maybe_evaluate_and_print(RL_agent, eval_env, evals, t, start_time, args, expls, values, tdds)
 
 		if t >= args.timesteps_before_training:
 			allow_train = True
@@ -77,7 +80,7 @@ def train_offline(RL_agent, env, eval_env, args):
 		RL_agent.train()
 
 
-def maybe_evaluate_and_print(RL_agent, eval_env, evals, t, start_time, args, expls, values, d4rl=False):
+def maybe_evaluate_and_print(RL_agent, eval_env, evals, t, start_time, args, expls, values, tdds, d4rl=False):
 	# if t % args.eval_freq == 0 and allow_train:
 	print("-----------------------------------------------------------------")
 	print(f"Evaluation at {t} time steps")
@@ -91,14 +94,14 @@ def maybe_evaluate_and_print(RL_agent, eval_env, evals, t, start_time, args, exp
 			state, reward, done, _ = eval_env.step(action)
 			total_reward[ep] += reward
 
-	print(f"Average over {args.eval_eps} ep_plc_r: {total_reward.mean():.3f} ep_exp_r: {expls[-1]:.3f} Q_value: {values[-1]:.3f} ")
+	print(f"Average over {args.eval_eps} ep_plc_r: {total_reward.mean():.3f} ep_exp_r: {expls[-1]:.3f} Q_value: {values[-1]:.3f} td_error: {tdds[-1]:.3f} ")
 	if d4rl:
 		total_reward = eval_env.get_normalized_score(total_reward) * 100
 		print(f"D4RL score: {total_reward.mean():.3f}")
 
 	evals.append(total_reward.mean())
 
-	np.save(f"{home_directory}/experiments/mrt/{args.file_name}", (evals, expls, values))
+	np.save(f"{home_directory}/experiments/mrt/{args.file_name}", (evals, expls, values, tdds))
 		# dd = np.load(f"{home_directory}/experiments/mrt/{args.file_name}.npy")
 
 
