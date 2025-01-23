@@ -360,9 +360,8 @@ class RewardTransformation(nn.Module):
 
 	def forward(self, r):
 
-		if self.a<=0.1:
-			self.a = 0.1
+		a = torch.clamp(self.a, min=0.1, max=5)
 
-		r_t = r*self.a + self.b
+		r_t = r*a + self.b
 
 		return r_t
