@@ -363,7 +363,7 @@ class RewardTransformation(nn.Module):
 	def forward(self, r):
 
 		if 'a' in self.mrt_rm_var:
-			a = self.a
+			a = 1
 		else:
 			a = torch.clamp(self.a, min=0.1, max=5)
 
