@@ -348,6 +348,8 @@ class RewardTransformation(nn.Module):
 	def __init__(self, mrt_rm_var):
 		super(RewardTransformation, self).__init__()
 
+		self.mrt_rm_var = mrt_rm_var
+
 		if 'a' in mrt_rm_var:
 			self.a = 1
 		else:
@@ -360,7 +362,10 @@ class RewardTransformation(nn.Module):
 
 	def forward(self, r):
 
-		a = torch.clamp(self.a, min=0.1, max=5)
+		if 'a' in self.mrt_rm_var:
+			a = self.a
+		else:
+			a = torch.clamp(self.a, min=0.1, max=5)
 
 		r_t = r*a + self.b
 
