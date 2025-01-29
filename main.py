@@ -101,7 +101,7 @@ if __name__ == "__main__":
 	parser.add_argument("--env", default="Humanoid-v4", type=str)
 	parser.add_argument("--seed", default=1, type=int)
 	parser.add_argument("--mrt", action='store_true')
-	parser.add_argument("--mrt_interval", default=1000, type=int)
+	parser.add_argument("--mrt_interval", default=250, type=int)
 	parser.add_argument("--offline", default=False, action=argparse.BooleanOptionalAction)
 	parser.add_argument('--use_checkpoints', default=False, action=argparse.BooleanOptionalAction)
 	# Evaluation
@@ -112,6 +112,7 @@ if __name__ == "__main__":
 	# File
 	parser.add_argument('--file_name', default=None)
 	parser.add_argument('--d4rl_path', default="./d4rl_datasets", type=str)
+	parser.add_argument('--task', default=None)
 	args = parser.parse_args()
 	
 	if args.offline:
@@ -125,6 +126,9 @@ if __name__ == "__main__":
 		algo_dir = 'td7_mrt_'+str(args.mrt_interval)
 	else:
 		algo_dir = 'td7'
+
+	if args.task:
+		algo_dir = algo_dir+'_'+args.task
 
 	data_dir = os.path.expanduser("~")+"/experiments/" +algo_dir
 	if not os.path.exists(data_dir):

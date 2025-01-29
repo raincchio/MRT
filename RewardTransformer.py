@@ -7,19 +7,9 @@ def AvgL1Norm(x, eps=1e-8):
 
 
 class RewardTransformation(nn.Module):
-	def __init__(self, state_dim, action_dim, zs_dim=256, hdim=256, activ=F.elu):
+	def __init__(self):
 		super(RewardTransformation, self).__init__()
-		self.activ = activ
 
-		self.q01 = nn.Linear(state_dim + action_dim, hdim)
-		self.q1 = nn.Linear(2 * zs_dim + hdim, hdim)
-		self.q2 = nn.Linear(hdim, hdim)
-		self.q3 = nn.Linear(hdim, 1)
-
-		self.q02 = nn.Linear(state_dim + action_dim, hdim)
-		self.q4 = nn.Linear(2 * zs_dim + hdim, hdim)
-		self.q5 = nn.Linear(hdim, hdim)
-		self.q6 = nn.Linear(hdim, 1)
 
 	def forward(self, state, action, zsa, zs):
 		sa = torch.cat([state, action], 1)
