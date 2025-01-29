@@ -66,7 +66,7 @@ class LAP(object):
 		# 	self.var = self.reward.var()
 
 		# empirical_average = (self.reward[self.ind] - self.target_reward)/self.var
-		# # shift_reward = self.softmax(empirical_average) -0.5
+		# # shift_reward = self.softmax(empirical_average) -0.5gg:
 		# shift_reward = empirical_average
 
 		return (

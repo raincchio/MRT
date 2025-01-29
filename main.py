@@ -8,22 +8,19 @@ import torch
 
 import TD7_MRT as TD7
 
-def train_online(RL_agent, env, eval_env, args, data_dir):
-	evals = []
-	expls = []
-	values = []
-	tdds = []
+# import TR as TD7
+
+def train_online(RL_agent, env, eval_env, args, f):
+
 	start_time = time.time()
 	allow_train = False
 	value = None
 	tdd = None
-
+	last_expl_reward = None
 	state, ep_finished = env.reset(), False
 	ep_total_reward, ep_timesteps, ep_num = 0, 0, 1
 
 	for t in range(int(args.max_timesteps+1)):
-
-		# maybe_log(RL_agent, eval_env, evals, t, start_time, argsc)
 		
 		if allow_train:
 			action = RL_agent.select_action(np.array(state))
@@ -44,10 +41,8 @@ def train_online(RL_agent, env, eval_env, args, data_dir):
 			value, tdd = RL_agent.train()
 
 		if allow_train and t % args.eval_freq == 0:
-			expls.append(ep_total_reward)
-			values.append(value)
-			tdds.append(tdd)
-			maybe_evaluate_and_print(RL_agent, eval_env, evals, t, start_time, args, expls, values, tdds, data_dir)
+
+			maybe_evaluate_and_print(RL_agent, eval_env, t, start_time, args, last_expl_reward, value, tdd, f)
 
 		if t >= args.timesteps_before_training:
 			allow_train = True
@@ -57,11 +52,9 @@ def train_online(RL_agent, env, eval_env, args, data_dir):
 				RL_agent.maybe_train_and_checkpoint(ep_timesteps, ep_total_reward)
 
 			state, done = env.reset(), False
+			last_expl_reward = ep_total_reward
 			ep_total_reward, ep_timesteps = 0, 0
 			ep_num += 1
-
-
-
 
 def train_offline(RL_agent, env, eval_env, args):
 	RL_agent.replay_buffer.load_D4RL(d4rl.qlearning_dataset(env))
@@ -74,7 +67,7 @@ def train_offline(RL_agent, env, eval_env, args):
 		RL_agent.train()
 
 
-def maybe_evaluate_and_print(RL_agent, eval_env, evals, t, start_time, args, expls, values, tdds, data_dir, d4rl=False):
+def maybe_evaluate_and_print(RL_agent, eval_env, t, start_time, args, expl, value, tdd, f, d4rl=False):
 	# if t % args.eval_freq == 0 and allow_train:
 	print("-----------------------------------------------------------------")
 	print(f"Evaluation at {t} time steps")
@@ -87,15 +80,17 @@ def maybe_evaluate_and_print(RL_agent, eval_env, evals, t, start_time, args, exp
 			action = RL_agent.select_action(np.array(state), args.use_checkpoints, use_exploration=False)
 			state, reward, done, _ = eval_env.step(action)
 			total_reward[ep] += reward
-
-	print(f"Average over {args.eval_eps} ep_plc_r: {total_reward.mean():.3f} ep_exp_r: {expls[-1]:.3f} Q_value: {values[-1]:.3f} td_error: {tdds[-1]:.3f} ")
+	eval = total_reward.mean()
+	print(f"Average over {args.eval_eps} eval_reward: {eval:.3f} expl_reward: {expl:.3f} value: {value:.3f} be_error: {tdd:.3f} ")
 	if d4rl:
 		total_reward = eval_env.get_normalized_score(total_reward) * 100
 		print(f"D4RL score: {total_reward.mean():.3f}")
 
-	evals.append(total_reward.mean())
 
-	np.save(f"{data_dir}/{args.file_name}", (evals, expls, values, tdds))
+
+	log = [eval, expl, value, tdd]
+	f.write(",".join(map(str, log)) + '\n')
+	f.flush()
 		# dd = np.load(f"{home_directory}/experiments/mrt/{args.file_name}.npy")
 
 
@@ -105,8 +100,8 @@ if __name__ == "__main__":
 	# RL
 	parser.add_argument("--env", default="Humanoid-v4", type=str)
 	parser.add_argument("--seed", default=1, type=int)
-	# parser.add_argument("--mrt", action='store_true')
-	parser.add_argument("--mrt_rm_var", type=str, help='comma-separated string, such as a, b')
+	parser.add_argument("--mrt", action='store_true')
+	parser.add_argument("--mrt_interval", default=1000, type=int)
 	parser.add_argument("--offline", default=False, action=argparse.BooleanOptionalAction)
 	parser.add_argument('--use_checkpoints', default=False, action=argparse.BooleanOptionalAction)
 	# Evaluation
@@ -124,19 +119,20 @@ if __name__ == "__main__":
 		d4rl.set_dataset_path(args.d4rl_path)
 		args.use_checkpoints = False
 
-	if args.file_name is None:
-		args.file_name = f"mrt_{args.env}_{args.seed}"
+	file_name = f"{args.env}_seed_{args.seed}"
 
-	if args.mrt_rm_var is not None:
-		mrt_rm_var = args.mrt_rm_var.split(',')
-		post_fix = 'mrt-'+'-'.join(mrt_rm_var)
+	if args.mrt:
+		algo_dir = 'td7_mrt_'+str(args.mrt_interval)
 	else:
-		post_fix = 'mrt'
-		mrt_rm_var = []
+		algo_dir = 'td7'
 
-	data_dir = os.path.expanduser("~")+"/experiments/" +post_fix
+	data_dir = os.path.expanduser("~")+"/experiments/" +algo_dir
 	if not os.path.exists(data_dir):
 		os.makedirs(data_dir)
+
+	f = open(data_dir + '/{}'.format(file_name), 'w')
+	log = ['eval_reward', 'expl_reward', 'value', 'be_error']
+	f.write(",".join(log) + '\n')
 
 	env = gym.make(args.env)
 	eval_env = gym.make(args.env)
@@ -155,9 +151,9 @@ if __name__ == "__main__":
 	action_dim = env.action_space.shape[0] 
 	max_action = float(env.action_space.high[0])
 
-	RL_agent = TD7.Agent(state_dim, action_dim, max_action, args.offline, mrt_rm_var=mrt_rm_var)
+	RL_agent = TD7.Agent(state_dim, action_dim, max_action, args.offline, mrt=args.mrt, mrt_interval=args.mrt_interval)
 
 	if args.offline:
 		train_offline(RL_agent, env, eval_env, args)
 	else:
-		train_online(RL_agent, env, eval_env, args, data_dir)
+		train_online(RL_agent, env, eval_env, args, f)
