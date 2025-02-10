@@ -1,5 +1,6 @@
 import argparse
 import os
+import random
 import time
 
 import gym
@@ -41,7 +42,6 @@ def train_online(RL_agent, env, eval_env, args, f):
 			value, tdd = RL_agent.train()
 
 		if allow_train and t % args.eval_freq == 0:
-
 			maybe_evaluate_and_print(RL_agent, eval_env, t, start_time, args, last_expl_reward, value, tdd, f)
 
 		if t >= args.timesteps_before_training:
@@ -69,9 +69,6 @@ def train_offline(RL_agent, env, eval_env, args):
 
 def maybe_evaluate_and_print(RL_agent, eval_env, t, start_time, args, expl, value, tdd, f, d4rl=False):
 	# if t % args.eval_freq == 0 and allow_train:
-	print("-----------------------------------------------------------------")
-	print(f"Evaluation at {t} time steps")
-	print(f"Total time passed: {round((time.time()-start_time)/60.,2)} min(s)")
 
 	total_reward = np.zeros(args.eval_eps)
 	for ep in range(args.eval_eps):
@@ -81,7 +78,8 @@ def maybe_evaluate_and_print(RL_agent, eval_env, t, start_time, args, expl, valu
 			state, reward, done, _ = eval_env.step(action)
 			total_reward[ep] += reward
 	eval = total_reward.mean()
-	print(f"Average over {args.eval_eps} eval_reward: {eval:.3f} expl_reward: {expl:.3f} value: {value:.3f} be_error: {tdd:.3f} ")
+
+	print(f"Step:{t} eval: {eval:.2f} expl: {expl:.2f} value: {value:.2f} be: {tdd:.2f}  time:{round((time.time()-start_time)/60.,2)} min(s)")
 	if d4rl:
 		total_reward = eval_env.get_normalized_score(total_reward) * 100
 		print(f"D4RL score: {total_reward.mean():.3f}")
@@ -112,7 +110,7 @@ if __name__ == "__main__":
 	# File
 	parser.add_argument('--file_name', default=None)
 	parser.add_argument('--d4rl_path', default="./d4rl_datasets", type=str)
-	parser.add_argument('--task', default=None)
+	parser.add_argument('--task', default='test')
 	args = parser.parse_args()
 	
 	if args.offline:
@@ -148,8 +146,16 @@ if __name__ == "__main__":
 	env.seed(args.seed)
 	env.action_space.seed(args.seed)
 	eval_env.seed(args.seed+100)
-	torch.manual_seed(args.seed)
+
+	random.seed(args.seed)
 	np.random.seed(args.seed)
+
+	torch.manual_seed(args.seed)
+	torch.cuda.manual_seed(args.seed)  # 如果使用 GPU
+	# torch.cuda.manual_seed_all(args.seed)
+	# torch.backends.cudnn.deterministic = True
+	# torch.backends.cudnn.benchmark = False
+
 	
 	state_dim = env.observation_space.shape[0]
 	action_dim = env.action_space.shape[0] 

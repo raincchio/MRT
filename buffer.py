@@ -56,9 +56,14 @@ class LAP(object):
 
 	def sample(self):
 		if self.prioritized:
-			csum = torch.cumsum(self.priority[:self.size], 0)
-			val = torch.rand(size=(self.batch_size,), device=self.device)*csum[-1]
+			self._priority = self.priority[:self.size]
+			csum = torch.cumsum(self._priority.to(torch.float64), 0)
+			val = torch.rand(size=(self.batch_size,), device=self.device, dtype=torch.float64)*csum[-1]
 			self.ind = torch.searchsorted(csum, val).cpu().data.numpy()
+
+			# prob = self._priority / self._priority.sum()
+			# self.ind = np.random.choice(len(prob), size=self.batch_size, p=prob.cpu())
+
 		else:
 			self.ind = np.random.randint(0, self.size, size=self.batch_size)
 		# if self.target_reward is None:

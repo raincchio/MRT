@@ -9,8 +9,6 @@ import torch.nn.functional as F
 
 import buffer
 
-from RewardTransformer import RewardTransformation
-
 
 @dataclass
 class Hyperparameters:
@@ -59,7 +57,6 @@ class Hyperparameters:
 
 def AvgL1Norm(x, eps=1e-8):
     return x/x.abs().mean(-1,keepdim=True).clamp(min=eps)
-
 
 def LAP_huber(x, min_priority=1):
     return torch.where(x < min_priority, 0.5 * x.pow(2), min_priority * x).sum(1).mean()
@@ -155,6 +152,7 @@ class Agent(object):
         # Changing hyperparameters example: hp=Hyperparameters(batch_size=128)
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # self.device = torch.device("cpu")
         self.hp = hp
 
         self.actor = Actor(state_dim, action_dim, hp.zs_dim, hp.actor_hdim, hp.actor_activ).to(self.device)
@@ -222,8 +220,8 @@ class Agent(object):
 
         state, action, next_state, reward, not_done = self.replay_buffer.sample()
 
-        # if len(self.mrt_rm_var) < 2:
-        #     reward = self.r_t(state, action, reward)
+        # if self.mrt:
+        #     reward = self.rt(reward)
 
         #########################
         # Update Encoder
@@ -261,12 +259,14 @@ class Agent(object):
             fixed_zsa = self.fixed_encoder.zsa(fixed_zs, action)
 
         Q = self.critic(state, action, fixed_zsa, fixed_zs)
-        td_loss = (Q - Q_target).abs()
+        value_difference = Q - Q_target
+        td_loss = value_difference.abs()
 
         if self.mrt and self.training_steps % self.mrt_interval == 0:
-            self.bias = td_loss.mean().detach()
+            self.bias = value_difference.mean().detach()*(1-self.training_steps/1e6)
 
         critic_loss = LAP_huber(td_loss)
+        # print(self.training_steps, critic_loss.mean())
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
@@ -308,6 +308,7 @@ class Agent(object):
                 Q = self.critic(state, actor, fixed_zsa, fixed_zs)
 
             actor_loss = -Q.mean()
+
             if self.offline:
                 actor_loss = actor_loss + self.hp.lmbda * Q.abs().mean().detach() * F.mse_loss(actor, action)
 
@@ -321,9 +322,16 @@ class Agent(object):
         #########################
         if self.training_steps % self.hp.target_update_rate == 0:
             self.actor_target.load_state_dict(self.actor.state_dict())
-            self.critic_target.load_state_dict(self.critic.state_dict())
             self.fixed_encoder_target.load_state_dict(self.fixed_encoder.state_dict())
             self.fixed_encoder.load_state_dict(self.encoder.state_dict())
+
+            if self.mrt:
+                self.critic_target.load_state_dict(self.bias_critic.state_dict())
+                self.critic.load_state_dict(self.bias_critic.state_dict())
+                # self.critic_target.load_state_dict(self.critic.state_dict())
+                # self.bias_critic.load_state_dict(self.critic.state_dict())
+            else:
+                self.critic_target.load_state_dict(self.critic.state_dict())
 
             self.replay_buffer.reset_max_priority()
 
