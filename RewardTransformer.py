@@ -9,16 +9,14 @@ def AvgL1Norm(x, eps=1e-8):
 class RewardTransformation(nn.Module):
 	def __init__(self):
 		super(RewardTransformation, self).__init__()
+		self.a = nn.Parameter(torch.tensor(10.0))
+		self.b = nn.Parameter(torch.tensor(0.0))
 
+	def forward(self, r):
+		a = self.a.clamp(min=0.5)
 
-	def forward(self, state, action, zsa, zs):
-		sa = torch.cat([state, action], 1)
-		embeddings = torch.cat([zsa, zs], 1)
+		return r +self.b
 
-		q1 = AvgL1Norm(self.q01(sa))
-		q1 = torch.cat([q1, embeddings], 1)
-		q1 = self.activ(self.q1(q1))
-		q1 = self.activ(self.q2(q1))
-		q1 = self.q3(q1)
-
-		return q1
+	def reset(self):
+		self.a = nn.Parameter(torch.tensor(10.0))
+		self.b = nn.Parameter(torch.tensor(0.0))
